@@ -266,7 +266,7 @@ export class ResultComponent implements OnInit {
 
     this.http
    /*  this.http.post<{ id: string, links: { rel: string, href: string }[] }>('https://api.numerologiabolivia.com/create-order', {}) */
-   this.http.post<{ id: string, links: { rel: string, href: string }[] }>('http://localhost:4000/create-order', {})
+   this.http.post<{ id: string, links: { rel: string, href: string }[] }>('https://api.numerologiabolivia.com/create-order', {})
       .subscribe((response) => {
         const approvalUrl = response.links.find(link => link.rel === "approve")?.href;
         if (approvalUrl) {
@@ -279,7 +279,7 @@ export class ResultComponent implements OnInit {
       });
   }
   capturePayment(token: string): void {
-    this.http.get(`http://localhost:4000/capture-order?token=${token}`)
+    this.http.get(`https://api.numerologiabolivia.com/capture-order?token=${token}`)
       .subscribe((response) => {
         console.log('Payment captured successfully:', response);
         this.router.navigate(['/payment-success']);
