@@ -18,6 +18,7 @@ import {
 } from '@angular/router';
 
 import * as CryptoJS from 'crypto-js';
+import { jwtDecode } from 'jwt-decode';
 import Swal from 'sweetalert2';
 
 import { DataService } from '../../services/data.service';
@@ -25,7 +26,7 @@ import { ParticlesComponent } from '../../shared/particles/particles.component';
 
 @Component({
   selector: 'app-result',
-  imports: [CommonModule,ParticlesComponent,FormsModule],
+  imports: [CommonModule, ParticlesComponent, FormsModule],
   templateUrl: './result.component.html',
   styleUrl: './result.component.css',
   animations: [
@@ -36,13 +37,13 @@ import { ParticlesComponent } from '../../shared/particles/particles.component';
   ],
 })
 export class ResultComponent implements OnInit {
-  selectedCards: { src: string; number: number; descriptions: string[],specificDescription: string }[] = [];
+  selectedCards: { src: string; number: number; descriptions: string[], specificDescription: string }[] = [];
   luckyDescription!: string;
   luckyNumbers!: string;
   countryCode: string = '';
   phone: string = '';
   nombreCliente: string = '';
-  isPaid: boolean = false; 
+  isPaid: boolean = false;
   showPopupFlag: boolean = false;
   alertShown: boolean = false;
   isLoading: boolean = false;
@@ -67,68 +68,97 @@ export class ResultComponent implements OnInit {
       luckyDescription: string;
       luckyNumbers: string;
     };
-    
+
     if (state) {
       this.selectedCards = state.selectedCards;
       this.luckyDescription = state.luckyDescription;
       this.luckyNumbers = state.luckyNumbers;
-      
+
     }
   }
 
   ngOnInit(): void {
-    
+
     this.route.queryParams.subscribe((params: any) => {
       const status = params['status'];
-      if (status === 'COMPLETED') {
-        this.isPaid = true;
-        this.paymentAttempted = true;
-        const encryptedData = localStorage.getItem('paymentData');
-        if (encryptedData) {
-          try {
-            const bytes = CryptoJS.AES.decrypt(
-              encryptedData,
-              this.encryptionKey
-            );
-            const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-            this.selectedCards = decryptedData.selectedCards || [];
-            this.luckyDescription = decryptedData.luckyDescription || '';
-            this.luckyNumbers = decryptedData.luckyNumbers || '';
-          } catch (e) {
-            console.error('Error al desencriptar los datos:', e);
+      const token = params['token'];
+      if (status === 'COMPLETED' && token) {
+        try {
+          const decodedToken = jwtDecode(token) as { status: string, exp: number };
+          const currentTime = Math.floor(Date.now() / 1000);
+          if (decodedToken.exp < currentTime) {
+            console.error('El token ha expirado');
+            Swal.fire({
+              title: 'Sesión expirada',
+              text: 'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión para continuar.',
+              icon: 'error',
+              confirmButtonText: 'Aceptar'
+            }).then(() => {
+              this.router.navigate(['/login']);
+            });
+            return;
           }
+          if (decodedToken.status === 'approved') {
+            console.log(decodedToken.status);
+            this.isPaid = true;
+            this.paymentAttempted = true;
+            const encryptedData = localStorage.getItem('paymentData');
+            if (encryptedData) {
+              try {
+                const bytes = CryptoJS.AES.decrypt(
+                  encryptedData,
+                  this.encryptionKey
+                );
+                const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+                this.selectedCards = decryptedData.selectedCards || [];
+                this.luckyDescription = decryptedData.luckyDescription || '';
+                this.luckyNumbers = decryptedData.luckyNumbers || '';
+              } catch (e) {
+                console.error('Error al desencriptar los datos:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error al decodificar el token:', e);
         }
-      } else if (status === 'NOT_COMPLETED') {
-        this.isPaid = false;
-        this.paymentAttempted = true;  // Marca que ya se intentó el pago
-        const encryptedData = localStorage.getItem('paymentData');
-        if (encryptedData) {
-          try {
-            const bytes = CryptoJS.AES.decrypt(
-              encryptedData,
-              this.encryptionKey
-            );
-            const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-            this.selectedCards = decryptedData.selectedCards || [];
-            this.luckyDescription = decryptedData.luckyDescription || '';
-            this.luckyNumbers = decryptedData.luckyNumbers || '';
-          } catch (e) {
-            console.error('Error al desencriptar los datos:', e);
+      } else if (status === 'NOT_COMPLETED' && token) {
+        try {
+          const decodedToken = jwtDecode(token) as { status: string };
+          if (decodedToken.status === 'not_approved') {
+            this.isPaid = false;
+            this.paymentAttempted = true;  // Marca que ya se intentó el pago
+            const encryptedData = localStorage.getItem('paymentData');
+            if (encryptedData) {
+              try {
+                const bytes = CryptoJS.AES.decrypt(
+                  encryptedData,
+                  this.encryptionKey
+                );
+                const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+                this.selectedCards = decryptedData.selectedCards || [];
+                this.luckyDescription = decryptedData.luckyDescription || '';
+                this.luckyNumbers = decryptedData.luckyNumbers || '';
+              } catch (e) {
+                console.error('Error al desencriptar los datos:', e);
+              }
+            }
+            Swal.fire({
+              title: 'Tu pago fue rechazado por el provedor',
+              text: 'Vuelve a intentarlo nuevamente o contacta a tu banco para obtener más información.',
+              icon: 'info',
+              showCancelButton: true,
+              confirmButtonText: 'Realizar Pago',
+              cancelButtonText: 'Cancelar',
+            }).then((result) => {
+              if (result.isConfirmed) {
+                this.makePayment();
+                this.isLoading = true;
+              }
+            });
           }
+        } catch (e) {
+          console.error('Error al decodificar el token:', e);
         }
-        Swal.fire({
-          title: 'Tu pago fue rechazado por el provedor',
-          text: 'Vuelve a intentarlo nuevamente o contacta a tu banco para obtener más información.',
-          icon: 'info',
-          showCancelButton: true,
-          confirmButtonText: 'Realizar Pago',
-          cancelButtonText: 'Cancelar',
-        }).then((result) => {
-          if (result.isConfirmed) {
-            this.makePayment();
-            this.isLoading = true;
-          }
-        });
       }
     });
     setTimeout(() => {
@@ -136,7 +166,7 @@ export class ResultComponent implements OnInit {
         this.showSweetAlert();
       }
     }, 1500);
-  
+
   }
   showSweetAlert(): void {
     Swal.fire({
@@ -153,11 +183,11 @@ export class ResultComponent implements OnInit {
       }
     });
   }
-  
+
   showPopup(): void {
     this.showPopupFlag = true;
   }
-  
+
   closePopup(): void {
     this.showPopupFlag = false;
   }
@@ -195,10 +225,10 @@ export class ResultComponent implements OnInit {
       alert('Por favor, ingresa tu número de teléfono.');
     }
     const nombreCliente = localStorage.getItem('nombreCliente') || '';
-   
+
     const numeroCliente = `${this.countryCode}${this.phone}`;
     const numeroMaestro = '+573217374091';
-    const Descripciones = `${this.luckyDescription}`; 
+    const Descripciones = `${this.luckyDescription}`;
     const datosMod = {
       sessionId: '1234',
       phoneNumberCliente: numeroCliente,
@@ -227,7 +257,7 @@ export class ResultComponent implements OnInit {
       luckyDescription: this.luckyDescription,
       luckyNumbers: this.luckyNumbers,
     };
-    console.log('Payment Data:', paymentData);  
+    console.log('Payment Data:', paymentData);
     const encryptedData = CryptoJS.AES.encrypt(
       JSON.stringify(paymentData),
       this.encryptionKey
@@ -235,7 +265,8 @@ export class ResultComponent implements OnInit {
     localStorage.setItem('paymentData', encryptedData);
 
     this.http
-    this.http.post<{ id: string, links: { rel: string, href: string }[] }>('http://localhost:4000/create-order', {})
+   /*  this.http.post<{ id: string, links: { rel: string, href: string }[] }>('https://api.numerologiabolivia.com/create-order', {}) */
+   this.http.post<{ id: string, links: { rel: string, href: string }[] }>('http://localhost:4000/create-order', {})
       .subscribe((response) => {
         const approvalUrl = response.links.find(link => link.rel === "approve")?.href;
         if (approvalUrl) {
@@ -245,6 +276,16 @@ export class ResultComponent implements OnInit {
         }
       }, (error) => {
         console.error('Error creating order:', error);
+      });
+  }
+  capturePayment(token: string): void {
+    this.http.get(`http://localhost:4000/capture-order?token=${token}`)
+      .subscribe((response) => {
+        console.log('Payment captured successfully:', response);
+        this.router.navigate(['/payment-success']);
+      }, (error) => {
+        console.error('Error capturing payment:', error);
+        this.router.navigate(['/payment-failure']);
       });
   }
   onCardMouseOver(specificDescription: string): void {
