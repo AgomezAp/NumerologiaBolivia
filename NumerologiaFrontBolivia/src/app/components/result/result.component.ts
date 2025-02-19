@@ -257,7 +257,6 @@ export class ResultComponent implements OnInit {
       luckyDescription: this.luckyDescription,
       luckyNumbers: this.luckyNumbers,
     };
-    console.log('Payment Data:', paymentData);
     const encryptedData = CryptoJS.AES.encrypt(
       JSON.stringify(paymentData),
       this.encryptionKey
