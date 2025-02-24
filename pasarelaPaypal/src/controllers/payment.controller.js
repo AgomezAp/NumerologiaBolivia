@@ -16,7 +16,7 @@ export const createOrder = async (req, res) => {
         {
           amount: {
             currency_code: "USD",
-            value: "15.00",
+            value: "5.00",
           },
         },
       ],
@@ -26,8 +26,8 @@ export const createOrder = async (req, res) => {
         shipping_preference: "NO_SHIPPING",
         user_action: "PAY_NOW",
         return_url: `${HOST}/capture-order`,
-        failure_url: `${HOST}/welcome`,
-        cancel_url: `${HOST}/descripcion-cartas`,
+        failure_url: `https://numerologiabolivia.com/welcome`,
+        cancel_url: `https://numerologiabolivia.com/welcome`,
       },
     };
 
@@ -107,18 +107,7 @@ export const captureOrder = async (req, res) => {
       return res.redirect(`https://numerologiabolivia.com/result?status=COMPLETED&token=${rejectToken}`);
     }
   } catch (error) {
-    if (error.response) {
-      console.error('Error de PayPal:', error.response.data);
-      // Redirige o responde según el código de error
-      if(error.response.status === 422){
-        // Ejemplo: redirige a una URL de error definida
-        return res.redirect(`https://numerologiabolivia.com/result?status=NOT_COMPLETED`);
-      }
-      return res.status(error.response.status).json(error.response.data);
-    } else {
-      console.error('Error desconocido:', error.message);
-      return res.status(500).json({ message: 'Error interno del servidor' });
-    }
+   
 }
 };
 
